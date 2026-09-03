@@ -1,10 +1,10 @@
 # Terminal MCP Server
 
 
-> **Part of the [HeLa MCP Ecosystem](https://github.com/1999AZZAR/hela-mcp-ecosystem)** — This server is **HeLa Nucleus (`hela-nucleus`)** — the *Command Exec* component of the HeLa cellular architecture. See the [ecosystem docs](https://github.com/1999AZZAR/hela-mcp-ecosystem) for profiles, workflows, and multi-client setup.
+> **Part of the [HeLa MCP Ecosystem](https://github.com/1999AZZAR/hela-hela-mcp-ecosystem)** — This server is **HeLa Nucleus (`hela-nucleus`)** — the *Command Exec* component of the HeLa cellular architecture. See the [ecosystem docs](https://github.com/1999AZZAR/hela-hela-mcp-ecosystem) for profiles, workflows, and multi-client setup.
 
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
-[![npm version](https://badge.fury.io/js/terminal-mcp-server.svg)](https://badge.fury.io/js/terminal-mcp-server)
+[![npm version](https://badge.fury.io/js/terminal-mcp.svg)](https://badge.fury.io/js/terminal-mcp)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3+-blue.svg)](https://www.typescriptlang.org/)
 
 Terminal MCP Server is a robust Model Context Protocol (MCP) server designed for executing commands on local and remote hosts via SSH. It provides a simple yet powerful interface for AI models and other applications to execute system commands with enhanced session management, error handling, and reliability features.
@@ -200,7 +200,7 @@ Provides basic system information to help with command execution planning and tr
     "heapUsed": 10485760,
     "external": 2048000
   },
-  "cwd": "/home/user/projects/terminal-mcp-server",
+  "cwd": "/home/user/projects/terminal-mcp",
   "env": {
     "SHELL": "/bin/bash",
     "USER": "user",
@@ -348,8 +348,8 @@ Lists panes within a specific tmux window with detailed pane information.
 ### Manual Installation
 ```bash
 # Clone the repository
-git clone https://github.com/1999AZZAR/terminal-mcp-server.git
-cd terminal-mcp-server
+git clone https://github.com/1999AZZAR/terminal-mcp.git
+cd terminal-mcp
 
 # Install dependencies
 npm install
@@ -621,7 +621,7 @@ Safely reads file contents on remote or local hosts.
   "mcpServers": {
     "terminal-mcp": {
       "command": "node",
-      "args": ["/path/to/terminal-mcp-server/build/index.js"],
+      "args": ["/path/to/terminal-mcp/build/index.js"],
       "env": {}
     }
   }
@@ -641,7 +641,7 @@ Safely reads file contents on remote or local hosts.
   "mcpServers": {
     "terminal-mcp": {
       "command": "node",
-      "args": ["/path/to/terminal-mcp-server/build/index.js"],
+      "args": ["/path/to/terminal-mcp/build/index.js"],
       "env": {}
     }
   }
@@ -661,7 +661,7 @@ Safely reads file contents on remote or local hosts.
   "mcpServers": {
     "terminal-mcp": {
       "command": "node",
-      "args": ["/path/to/terminal-mcp-server/build/index.js"],
+      "args": ["/path/to/terminal-mcp/build/index.js"],
       "env": {}
     }
   }
