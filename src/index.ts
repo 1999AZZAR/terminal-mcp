@@ -21,6 +21,7 @@ import {
   RateLimitError
 } from "./executor.js";
 import { log } from "./logger.js";
+import { textResult } from "./envelope.js";
 import { execFile, execSync } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
@@ -293,6 +294,12 @@ function createServer() {
     try {
       const toolName = request.params.name;
 
+      // P0-A5: SSH/SFTP to remote hosts is gated. Local execution is unaffected;
+      // set HELA_NUCLEUS_ALLOW_REMOTE=true to opt in to remote targets.
+      if (request.params.arguments?.host && process.env['HELA_NUCLEUS_ALLOW_REMOTE'] !== 'true') {
+        throw new McpError(ErrorCode.InvalidParams, "remote hosts are disabled (set HELA_NUCLEUS_ALLOW_REMOTE=true to enable)");
+      }
+
       // Handle transfer_file tool
       if (toolName === "transfer_file") {
         const source = request.params.arguments?.source ? String(request.params.arguments.source) : undefined;
@@ -338,12 +345,7 @@ function createServer() {
             });
           }
 
-          return {
-            content: [{
-              type: "text",
-              text: JSON.stringify(result, null, 2)
-            }]
-          };
+          return textResult(toolName, result);
         } catch (error) {
           if (error instanceof ValidationError) {
             throw new McpError(ErrorCode.InvalidParams, `Validation Error: ${error.message}`);
@@ -493,12 +495,7 @@ function createServer() {
           workingDirectory: workingDirectory || (host ? undefined : process.cwd())
         };
         
-        return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(response, null, 2)
-          }]
-        };
+        return textResult(toolName, response);
       } catch (error) {
         // Handle validation errors
         if (error instanceof ValidationError) {
@@ -534,12 +531,7 @@ function createServer() {
               rtkSummarized: stdoutSummarized || stderrSummarized,
               error: error.message
             };
-            return {
-               content: [{
-                type: "text",
-                text: JSON.stringify(response, null, 2)
-              }]
-            };
+            return textResult(toolName, response);
           }
            throw new McpError(ErrorCode.InternalError, `Command failed: ${error.message}`);
         }

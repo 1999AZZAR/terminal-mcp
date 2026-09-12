@@ -864,6 +864,8 @@ All limits and timeouts are configurable via environment variables:
 | `RTK_BIN` | (rtk in PATH) | Path to `rtk` binary |
 | `RTK_MCP_REWRITE` | true | Enable/disable `rtk` token optimizations |
 | `DEBUG` | false | Enable debug logging |
+| `HELA_NUCLEUS_ALLOW_REMOTE` | *unset = off* | Set to `true` to allow the `host` argument (remote SSH execution). Off = any call with `host` is denied; local execution unchanged. |
+| `HELA_ENVELOPE` | *unset = off* | Set to `true` to wrap tool results in the canonical HeLaResult envelope (`ok/summary/data/artifacts/provenance/warnings/sideEffects/execution`; `execute_command`/`transfer_file` report `sideEffects`). Off = byte-identical legacy output. Run/step ids propagate from `HELA_RUN_ID`/`HELA_STEP_ID`. |
 
 ### Example Configuration
 

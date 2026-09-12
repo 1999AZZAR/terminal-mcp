@@ -2,7 +2,13 @@
   "name": "terminal-mcp-server",
   "version": "1.2.0",
   "description": "A robust MCP server for executing commands locally and remotely via SSH with enhanced session management and error handling",
-  "keywords": ["mcp", "terminal", "ssh", "remote", "command-execution"],
+  "keywords": [
+    "mcp",
+    "terminal",
+    "ssh",
+    "remote",
+    "command-execution"
+  ],
   "author": "Terminal MCP Server Contributors",
   "license": "MIT",
   "private": false,
@@ -23,7 +29,8 @@
     "test": "npm run build && npm run inspector",
     "fix-shell": "./fix-shell.sh",
     "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix"
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "test:envelope": "npm run build && node --test \"test/*.test.mjs\""
   },
   "repository": {
     "type": "git",
