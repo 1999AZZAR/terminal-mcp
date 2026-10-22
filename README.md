@@ -65,7 +65,7 @@ Terminal MCP Server is a robust Model Context Protocol (MCP) server designed for
 
 ## RTK Integration
 
-![Blotcat pulling the lever on a hydraulic RTK press to crush a verbose log into a dense optimized token](assets/blotcat-rtk.jpg)
+![Blotcat turning a hand crank on a desktop press to compress a verbose terminal log into a high-density token cube](assets/terminal-illustrations/03-rtk-optimizer.jpg)
 
 Terminal MCP Server integrates with [rtk](https://github.com/1999AZZAR/rtk) to significantly reduce token consumption and improve context efficiency.
 
@@ -813,6 +813,8 @@ If environment variables aren't persisting:
 - Timeout values must be between 1 and 600 seconds (1000-600000 milliseconds)
 
 ## Security Features
+
+![Blotcat acting as a vigilant gatekeeper filtering shell commands and path segments, deflecting dangerous root operations into a containment bin while guiding safe executions through](assets/terminal-illustrations/04-security.jpg)
 
 This implementation includes comprehensive security measures:
 
