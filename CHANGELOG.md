@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-10-23
+
+### Changed
+- **Zero-Collision Tool Rename**: Renamed `session_close` and `session_list` to `terminal_session_close` and `terminal_session_list`, eliminating the exact-name collision with `hela-ribosome` (menager-mcp) PTY session tools. Tool behavior and schemas are unchanged.
+- **Canonical File-Read Boundary**: `terminal_cat` now requires `host` and is restricted to remote SSH targets. Local reads must use `hela-membrane:read_file`.
+
 ## [1.4.0] - 2026-10-22
 
 ### Added

@@ -29,8 +29,8 @@ Terminal MCP Server is a robust Model Context Protocol (MCP) server designed for
   - [terminal_ls](#terminal_ls)
   - [terminal_grep](#terminal_grep)
   - [terminal_cat](#terminal_cat)
-  - [session_close](#session_close)
-  - [session_list](#session_list)
+  - [terminal_session_close](#terminal_session_close)
+  - [terminal_session_list](#terminal_session_list)
 - [Configuring with AI Assistants](#configuring-with-ai-assistants)
   - [Configuring with Roo Code](#configuring-with-roo-code)
   - [Configuring with Cline](#configuring-with-cline)
@@ -595,20 +595,20 @@ Safely searches for patterns in files on remote or local hosts.
 
 ### terminal_cat
 
-Safely reads file contents on remote or local hosts.
+Safely reads file contents on remote SSH targets. Local file reads must use `hela-membrane:read_file`.
 
 #### Parameters
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | path | string | Yes | File path to read |
-| host | string | No | Remote host to connect to (local if omitted) |
+| host | string | Yes | Remote host to connect to |
 | username | string | For remote | SSH username (required if host provided) |
 | session | string | No | Session name for connection reuse (default: 'default') |
 | tail | boolean | No | If true, reads the end of the file like `tail` (default: false) |
 | lines | number | No | Number of lines to read if using tail (default: 100) |
 
-### session_close
+### terminal_session_close
 
 Closes and disconnects an active local or remote terminal session, immediately freeing up a session slot against the `MAX_CONCURRENT_SESSIONS` limit.
 
@@ -627,7 +627,7 @@ Closes and disconnects an active local or remote terminal session, immediately f
 }
 ```
 
-### session_list
+### terminal_session_list
 
 Lists all active local and remote sessions, reporting session keys, active working directories, environment variable names, last activity timestamps, and current session capacity.
 

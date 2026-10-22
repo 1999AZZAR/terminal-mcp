@@ -259,23 +259,23 @@ function createServer() {
         },
         {
           name: "terminal_cat",
-          description: "Read file contents safely on remote or local hosts.",
+          description: "Restricted to remote SSH targets. Read remote file contents safely; use hela-membrane read_file for local files.",
           inputSchema: {
             type: "object",
             properties: {
               path: { type: "string", description: "File path to read" },
-              host: { type: "string", description: "Remote host (optional)" },
+              host: { type: "string", description: "Remote host (required; local reads must use hela-membrane read_file)" },
               username: { type: "string", description: "Username for SSH (required if host provided)" },
               session: { type: "string", default: "default" },
               tail: { type: "boolean", description: "If true, reads the end of the file (like tail)", default: false },
               lines: { type: "number", description: "Number of lines to read if using tail (like -n)", default: 100 },
               useRtk: { type: "boolean", description: "Use RTK optimization (default: true)", default: true }
             },
-            required: ["path"]
+            required: ["path", "host"]
           }
         },
         {
-          name: "session_close",
+          name: "terminal_session_close",
           description: "Close and disconnect an active terminal session, releasing its session slot. Accepts a session name (e.g. 'default', 'build'), session key (e.g. 'local-default'), or 'all' to close all active sessions.",
           inputSchema: {
             type: "object",
@@ -293,7 +293,7 @@ function createServer() {
           },
         },
         {
-          name: "session_list",
+          name: "terminal_session_list",
           description: "List all active local and remote terminal sessions, showing session keys, working directories, active environment variables, last activity timestamps, and capacity.",
           inputSchema: {
             type: "object",
@@ -315,7 +315,7 @@ function createServer() {
       }
 
       // Handle session lifecycle tools
-      if (toolName === "session_close") {
+      if (toolName === "terminal_session_close") {
         const session = request.params.arguments?.session ? String(request.params.arguments.session) : undefined;
         if (!session) {
           throw new McpError(ErrorCode.InvalidParams, "Session name is required");
@@ -335,7 +335,7 @@ function createServer() {
         }
       }
 
-      if (toolName === "session_list") {
+      if (toolName === "terminal_session_list") {
         try {
           const result = await commandExecutor.listSessions();
           return textResult(toolName, result);
@@ -445,6 +445,9 @@ function createServer() {
         const targetPath = String(request.params.arguments?.path || "").trim();
         if (!targetPath) {
           throw new McpError(ErrorCode.InvalidParams, "Path is required for terminal_cat");
+        }
+        if (!request.params.arguments?.host) {
+          throw new McpError(ErrorCode.InvalidParams, "terminal_cat is restricted to remote SSH targets; use hela-membrane read_file for local files");
         }
         const tail = request.params.arguments?.tail === true;
         const lines = Number(request.params.arguments?.lines || 100);

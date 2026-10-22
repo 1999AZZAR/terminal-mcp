@@ -15,8 +15,8 @@ const ALL_TOOLS = [
   'terminal_ls',
   'terminal_grep',
   'terminal_cat',
-  'session_close',
-  'session_list',
+  'terminal_session_close',
+  'terminal_session_list',
 ];
 const REQUIRED_KEYS = ['ok', 'summary', 'data', 'artifacts', 'provenance', 'warnings', 'sideEffects', 'execution', 'redaction'];
 
@@ -41,8 +41,8 @@ test('side-effect map covers every tool', () => {
   assert.deepEqual(new Set(Object.keys(TOOL_SIDE_EFFECTS)), new Set(ALL_TOOLS));
   assert.deepEqual(TOOL_SIDE_EFFECTS['execute_command'], ['command-execution']);
   assert.deepEqual(TOOL_SIDE_EFFECTS['transfer_file'], ['file-transfer']);
-  assert.deepEqual(TOOL_SIDE_EFFECTS['session_close'], ['session-termination']);
-  for (const t of ['terminal_ls', 'terminal_grep', 'terminal_cat', 'session_list']) {
+  assert.deepEqual(TOOL_SIDE_EFFECTS['terminal_session_close'], ['session-termination']);
+  for (const t of ['terminal_ls', 'terminal_grep', 'terminal_cat', 'terminal_session_list']) {
     assert.deepEqual(TOOL_SIDE_EFFECTS[t], [], `${t} must be side-effect free`);
   }
 });
