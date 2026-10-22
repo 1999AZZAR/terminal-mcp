@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-10-22
+
+### Added
+- **Working Directory Session Persistence**: Intercepted standalone `cd` and `pwd` commands to track and update session `workingDirectory`, ensuring directory state persists across subsequent commands in the session.
+- **Dynamic Output Buffer Support**: Aligned `child_process.exec` `maxBuffer` to `config.maxOutputSize` (default 5MB), preventing unhandled `ERR_CHILD_PROCESS_STDIO_MAXBUFFER` exceptions on large stdout/stderr payloads.
+- **SSH Multi-Key Discovery**: Added automatic key discovery fallback across `id_ed25519`, `id_rsa`, and `id_ecdsa` when `SSH_KEY_PATH` is not explicitly set.
+- **Safe Directory Traversal Resolution**: Replaced naive substring `..` checks with path segment traversal verification (`hasPathTraversal`) in local file copy and SFTP transfers, safely allowing filenames containing double dots (e.g. `report..draft.txt`).
+- **Option Flag Injection Guard**: Added `--` option separators to native `terminal_grep` and `terminal_ls` commands to prevent arguments starting with `-` from being parsed as options.
+- **RTK Binary Resolution Caching**: Cached null status when RTK binary is missing (`cachedRtkBinary = null`) to eliminate repeated failed process spawn overhead on systems without RTK.
+- **Comprehensive Test Suite**: Added `test/executor.test.mjs` verifying command execution, error codes, large output buffer handling, directory persistence, path traversal safety, and dangerous pattern filters.
+
+### Fixed
+- **Regex False-Positive Blocks**: Refined `rm`, `chmod`, and `chown` security regexes to target destructive root/home targets (`rm -rf /`, `rm -rf ~`) without falsely blocking safe paths (e.g. `rm -rf /tmp/my-safe-dir` or `chmod 777 /tmp/script.sh`).
+- **ESLint & Code Hygiene**: Resolved ESLint errors (`prefer-const`), removed unused imports (`execSync`, `sessionKey`, `output`), and cleaned up empty catch blocks.
+
 ## [1.3.0] - 2026-08-07
 
 ### Added

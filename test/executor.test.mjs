@@ -104,8 +104,8 @@ test('CommandExecutor: path traversal detection vs safe double-dot filenames', a
     assert.equal(copyRes.success, true);
     assert.equal(fs.readFileSync(dstFile, 'utf8'), 'hello double dot');
   } finally {
-    try { fs.unlinkSync(srcFile); } catch {}
-    try { fs.unlinkSync(dstFile); } catch {}
+    try { fs.unlinkSync(srcFile); } catch (_err) { /* ignore cleanup error */ }
+    try { fs.unlinkSync(dstFile); } catch (_err) { /* ignore cleanup error */ }
     await executor.disconnect();
   }
 });

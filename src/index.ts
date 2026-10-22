@@ -121,7 +121,7 @@ function createServer() {
   const server = new Server(
     {
       name: "terminal-mcp-server",
-      version: "1.2.0",
+      version: "1.4.0",
     },
     {
       capabilities: {

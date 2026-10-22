@@ -49,19 +49,19 @@ Terminal MCP Server is a robust Model Context Protocol (MCP) server designed for
 
 ![Blotcat standing at a command console routing pipes locally and remotely](assets/terminal-illustrations/01-execution.jpg)
 
-- **Local Command Execution**: Execute commands directly on the local machine
-- **Remote Command Execution**: Execute commands on remote hosts via SSH with automatic retry and connection health checks
+- **Local Command Execution**: Execute commands directly on the local machine with resilient output buffering up to 5MB
+- **Remote Command Execution**: Execute commands on remote hosts via SSH with multi-key auto-discovery (`id_ed25519`, `id_rsa`, `id_ecdsa`), automatic retry, and connection health checks
 - **Session Persistence**: Support for persistent sessions that reuse the same terminal environment for a specified time (default 20 minutes)
-- **Working Directory Management**: Set and persist working directories across commands in sessions
+- **Working Directory Management**: Set and persist working directories across commands in sessions, with seamless standalone `cd` and `pwd` command tracking
 - **Environment Variables**: Set custom environment variables for commands with persistence across session
 - **Configurable Timeouts**: Set custom command timeouts (1-600 seconds) with proper timeout handling
 - **Enhanced Error Handling**: Detailed error messages with automatic retry mechanisms for SSH connections
 - **Robust Session Management**: Automatic connection pooling, reconnection, and graceful cleanup
 - **Exit Code Reporting**: Commands return proper exit codes for better error detection
 - **Stdio Connection**: Connect via standard input/output for direct integration
-- **Security Features**: Command validation, dangerous pattern detection, output size limits, session limits, rate limiting
-- **File Transfers**: Upload and download files via SFTP, local file copy operations
-- **RTK Integration**: Intelligent command rewriting and output summarization to optimize token usage for AI contexts
+- **Security Features**: Precise command validation (root protection without false positives), path segment traversal defense, output size limits, session limits, rate limiting
+- **File Transfers**: Upload and download files via SFTP, local file copy operations with safe double-dot filename support
+- **RTK Integration**: Intelligent command rewriting and output summarization to optimize token usage for AI contexts, with missing-binary resolution caching
 
 ## RTK Integration
 
@@ -682,7 +682,7 @@ Safely reads file contents on remote or local hosts.
 ### SSH Connection
 
 - Ensure SSH key-based authentication is set up
-- If connection fails, check if the key file exists (default path: `~/.ssh/id_rsa`)
+- If connection fails, check your SSH keys (the server automatically looks for `id_ed25519`, `id_rsa`, and `id_ecdsa` in `~/.ssh/` or uses `SSH_KEY_PATH`)
 - Make sure the SSH service is running on the remote host
 - The server automatically retries failed connections with exponential backoff
 - Connection health is monitored and sessions are automatically reconnected when needed
@@ -709,12 +709,14 @@ Safely reads file contents on remote or local hosts.
 
 - Use the `workingDirectory` parameter to execute commands in specific directories
 - Working directories are remembered across commands in the same session
+- Standalone `cd <directory>` commands executed in a session will automatically update and persist that session's `workingDirectory`
+- Executing `pwd` reports the session's active directory in both stdout and `workingDirectory` metadata
 - Paths are automatically validated and errors are reported clearly
 
 ### Timeout Management
 
 - Set appropriate timeout values based on your command's expected duration
-- Default timeout is 30 seconds, configurable from 1 to 300 seconds
+- Default timeout is 30 seconds, configurable from 1 to 600 seconds
 - Commands that exceed the timeout will return exit code 124
 - Use longer timeouts for operations like package installation or compilation
 
@@ -808,7 +810,7 @@ If environment variables aren't persisting:
 - The server automatically handles connection failures and retries with exponential backoff
 - All sessions are properly cleaned up on server shutdown
 - Working directories and environment variables persist within the same session
-- Timeout values must be between 1 and 300 seconds (1000-300000 milliseconds)
+- Timeout values must be between 1 and 600 seconds (1000-600000 milliseconds)
 
 ## Security Features
 
@@ -817,11 +819,13 @@ This implementation includes comprehensive security measures:
 ### Command Validation
 
 Dangerous command patterns are automatically detected and blocked:
-- `rm -rf /` and similar destructive commands
+- Destructive root/home directory operations: `rm -rf /`, `rm -rf ~`, `rm -rf /*`, `chmod 777 /`, `chown root /`
+  *(Note: Precise regex matching ensures safe subdirectories such as `rm -rf /tmp/my-dir` or `chmod 777 /tmp/script.sh` remain allowed)*
 - Fork bombs like `:(){ :|:& };:`
 - Pipe to shell patterns like `curl ... | bash`
 - Direct writes to system directories (`/etc/`, `/boot/`)
 - Device operations (`dd of=/dev/...`, `mkfs`)
+- Option injection protection: Native `terminal_ls` and `terminal_grep` employ `--` boundary flags to prevent flag injection from arbitrary inputs
 
 To disable command validation (not recommended):
 ```bash
@@ -830,14 +834,15 @@ ENABLE_COMMAND_VALIDATION=false node build/index.js
 
 ### Resource Limits
 
-- **Output Size Limit**: Large command outputs are automatically truncated (default 5MB)
+- **Execution Buffer & Output Limits**: Child process `maxBuffer` automatically scales to match `MAX_OUTPUT_SIZE` (default 5MB), preventing buffer crashes while cleanly capturing large outputs.
 - **Session Limit**: Maximum concurrent sessions prevents resource exhaustion (default 10)
 - **Session Timeout**: Inactive sessions are automatically cleaned up (default 20 minutes)
 - **Rate Limiting**: Commands per session are rate limited (default 60/minute)
 - **File Transfer Size**: Maximum file size for SFTP transfers (default 100MB)
 
-### Input Validation
+### Input Validation & Path Traversal Defense
 
+- **Path Traversal Protection**: File transfers and local file copies analyze individual path segments (`..`), preventing directory traversal outside intended trees while safely allowing valid filenames that contain double dots (e.g. `archive..backup.tar.gz`)
 - Session names must be 1-64 alphanumeric characters (with underscores/hyphens)
 - Working directories are validated to exist for local commands
 - Hostnames and usernames are validated for proper format
@@ -860,7 +865,7 @@ All limits and timeouts are configurable via environment variables:
 | `RATE_LIMIT_PER_MINUTE` | 60 | Maximum commands per minute per session |
 | `RATE_LIMIT_ENABLED` | true | Enable/disable rate limiting |
 | `MAX_FILE_TRANSFER_SIZE` | 104857600 | Maximum file size for transfers (100MB) |
-| `SSH_KEY_PATH` | ~/.ssh/id_rsa | Path to SSH private key |
+| `SSH_KEY_PATH` | Auto-discovered | Path to SSH private key (searches ~/.ssh/id_ed25519, id_rsa, id_ecdsa) |
 | `RTK_BIN` | (rtk in PATH) | Path to `rtk` binary |
 | `RTK_MCP_REWRITE` | true | Enable/disable `rtk` token optimizations |
 | `DEBUG` | false | Enable debug logging |
