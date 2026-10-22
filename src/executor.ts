@@ -110,20 +110,20 @@ export class CommandExecutor {
   
   // Dangerous command patterns that could be security risks
   private static readonly DANGEROUS_PATTERNS: RegExp[] = [
-    /rm\s+(-[rf]+\s+)*\//i,                    // rm with root path
-    /rm\s+(-[rf]+\s+)*~\//i,                   // rm with home directory
-    /mkfs\./i,                                  // filesystem formatting
-    /dd\s+.*of=\/dev\//i,                      // dd to device
-    />\s*\/dev\/sd[a-z]/i,                     // write to disk device
-    /chmod\s+(-R\s+)?777\s+\//i,               // chmod 777 on root
-    /chown\s+(-R\s+)?.*\s+\//i,                // chown on root
-    /:(){ :\|:& };:/,                          // fork bomb
-    /\|\s*mail\s/i,                            // pipe to mail
-    /curl.*\|\s*(ba)?sh/i,                     // curl pipe to shell
-    /wget.*\|\s*(ba)?sh/i,                     // wget pipe to shell
-    /\beval\s+.*\$\(/i,                        // eval with command substitution
-    />\s*\/etc\//i,                            // write to /etc
-    />\s*\/boot\//i,                           // write to /boot
+    /rm\s+(-[a-zA-Z0-9-]+\s+)*(\/|\/\*|~|~\/)(\s|$|[;&|])/i, // rm with root or home directory path
+    /rm\s+.*--no-preserve-root/i,                              // rm with no-preserve-root
+    /mkfs\./i,                                                // filesystem formatting
+    /dd\s+.*of=\/dev\//i,                                    // dd to device
+    />\s*\/dev\/sd[a-z]/i,                                   // write to disk device
+    /chmod\s+(-[a-zA-Z0-9-]+\s+)*777\s+(\/|\/\*)(\s|$|[;&|])/i, // chmod 777 on root
+    /chown\s+(-[a-zA-Z0-9-]+\s+)*[^\s]+\s+(\/|\/\*)(\s|$|[;&|])/i, // chown on root
+    /:(){ :\|:& };:/,                                        // fork bomb
+    /\|\s*mail\s/i,                                          // pipe to mail
+    /curl.*\|\s*(ba)?sh/i,                                   // curl pipe to shell
+    /wget.*\|\s*(ba)?sh/i,                                   // wget pipe to shell
+    /\beval\s+.*\$\(/i,                                      // eval with command substitution
+    />\s*\/etc\//i,                                          // write to /etc
+    />\s*\/boot\//i,                                         // write to /boot
   ];
 
   // Session name validation pattern
@@ -318,7 +318,15 @@ export class CommandExecutor {
     };
   }
 
-  private getSessionKey(host: string | undefined, sessionName: string): string {
+  /**
+   * Check if a path contains directory traversal segments (..)
+   */
+  private hasPathTraversal(filePath: string): boolean {
+    const segments = filePath.split(/[\\/]/);
+    return segments.some(seg => seg.trim() === '..');
+  }
+
+    private getSessionKey(host: string | undefined, sessionName: string): string {
     return `${host || 'local'}-${sessionName}`;
   }
 
@@ -327,7 +335,7 @@ export class CommandExecutor {
     this.validateSessionName(sessionName);
     
     const sessionKey = this.getSessionKey(host, sessionName);
-    let session = this.sessions.get(sessionKey);
+    const session = this.sessions.get(sessionKey);
     
     // Check if session exists and is still valid
     if (session?.connection && session?.client && await this.isConnectionHealthy(session.client)) {
@@ -400,7 +408,6 @@ export class CommandExecutor {
   }
 
   private async connectWithRetry(host: string, username: string, sessionName: string): Promise<void> {
-    const sessionKey = this.getSessionKey(host, sessionName);
     let retryCount = 0;
     const maxRetries = this.config.maxRetries;
 
@@ -433,11 +440,21 @@ export class CommandExecutor {
     const sessionKey = this.getSessionKey(host, sessionName);
     
     try {
-      const privateKeyPath = process.env.SSH_KEY_PATH || path.join(os.homedir(), '.ssh', 'id_rsa');
-      
-      // Check if SSH key exists
-      if (!fs.existsSync(privateKeyPath)) {
-        throw new SshConnectionError(`SSH key not found at ${privateKeyPath}. Please ensure SSH key-based authentication is set up or set SSH_KEY_PATH environment variable.`);
+      let privateKeyPath = process.env.SSH_KEY_PATH;
+      if (!privateKeyPath) {
+        const sshDir = path.join(os.homedir(), '.ssh');
+        const candidateKeys = ['id_ed25519', 'id_rsa', 'id_ecdsa'];
+        for (const candidate of candidateKeys) {
+          const fullPath = path.join(sshDir, candidate);
+          if (fs.existsSync(fullPath)) {
+            privateKeyPath = fullPath;
+            break;
+          }
+        }
+      }
+
+      if (!privateKeyPath || !fs.existsSync(privateKeyPath)) {
+        throw new SshConnectionError(`No SSH private key found (checked id_ed25519, id_rsa, id_ecdsa in ~/.ssh). Please ensure SSH key-based authentication is set up or set SSH_KEY_PATH environment variable.`);
       }
       
       const privateKey = fs.readFileSync(privateKeyPath);
@@ -611,7 +628,7 @@ export class CommandExecutor {
       workingDirectory?: string;
       timeout?: number;
     } = {}
-  ): Promise<{stdout: string; stderr: string; exitCode?: number}> {
+  ): Promise<{stdout: string; stderr: string; exitCode?: number; workingDirectory?: string}> {
     const { 
       host, 
       username, 
@@ -710,13 +727,10 @@ export class CommandExecutor {
 
     return new Promise((resolve, reject) => {
       const uniqueMarker = `CD_END_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-      let output = '';
       let commandFinished = false;
 
       const dataHandler = (data: Buffer) => {
         const str = data.toString();
-        output += str;
-        
         if (str.includes(uniqueMarker)) {
           commandFinished = true;
           sessionData.shell.removeListener('data', dataHandler);
@@ -758,7 +772,7 @@ export class CommandExecutor {
     command: string, 
     env: Record<string, string>, 
     timeout: number
-  ): Promise<{stdout: string; stderr: string; exitCode?: number}> {
+  ): Promise<{stdout: string; stderr: string; exitCode?: number; workingDirectory?: string}> {
     const sessionData = this.sessions.get(sessionKey);
     if (!sessionData || !sessionData.shell) {
       throw new CommandExecutionError('Shell session not available');
@@ -813,7 +827,8 @@ export class CommandExecutor {
           resolve({ 
             stdout: commandOutput.trim(), 
             stderr: stderr.trim(),
-            exitCode: exitCode
+            exitCode: exitCode,
+            workingDirectory: sessionData.workingDirectory
           });
           
           sessionData.shell.removeListener('data', dataHandler);
@@ -844,7 +859,7 @@ export class CommandExecutor {
           stderr += "Command execution timed out";
           sessionData.shell.removeListener('data', dataHandler);
           sessionData.shell.removeListener('error', errorHandler);
-          resolve({ stdout, stderr, exitCode: 124 }); // 124 is timeout exit code
+          resolve({ stdout, stderr, exitCode: 124, workingDirectory: sessionData.workingDirectory }); // 124 is timeout exit code
         }
       }, timeout);
     });
@@ -855,7 +870,7 @@ export class CommandExecutor {
     command: string, 
     env: Record<string, string>, 
     timeout: number
-  ): Promise<{stdout: string; stderr: string; exitCode?: number}> {
+  ): Promise<{stdout: string; stderr: string; exitCode?: number; workingDirectory?: string}> {
     const sessionData = this.sessions.get(sessionKey);
     if (!sessionData || !sessionData.client) {
       throw new CommandExecutionError('SSH client not available');
@@ -895,7 +910,7 @@ export class CommandExecutor {
           })
           .on('close', (code: number) => {
             exitCode = code;
-            resolve({ stdout, stderr, exitCode });
+            resolve({ stdout, stderr, exitCode, workingDirectory: sessionData.workingDirectory });
           })
           .on('error', (err) => {
             reject(new CommandExecutionError(err.message, undefined, stdout, stderr));
@@ -907,7 +922,8 @@ export class CommandExecutor {
           resolve({ 
             stdout, 
             stderr: stderr + "Command execution timed out", 
-            exitCode: 124 
+            exitCode: 124,
+            workingDirectory: sessionData.workingDirectory
           });
         }, timeout);
       });
@@ -920,7 +936,7 @@ export class CommandExecutor {
     env: Record<string, string>, 
     workingDirectory?: string,
     timeout: number = 30000
-  ): Promise<{stdout: string; stderr: string; exitCode?: number}> {
+  ): Promise<{stdout: string; stderr: string; exitCode?: number; workingDirectory?: string}> {
     // Get or create local session
     let sessionData = this.sessions.get(sessionKey);
     
@@ -951,6 +967,51 @@ export class CommandExecutor {
     
     this.resetTimeout(sessionKey);
     
+    // Check if command is trying to change directory (cd)
+    const cdMatch = command.match(/^\s*cd(?:\s+(.+))?\s*$/);
+    if (cdMatch) {
+      let targetDir = cdMatch[1] ? cdMatch[1].trim() : '';
+      targetDir = this.removeMatchingQuotes(targetDir);
+
+      if (!targetDir || targetDir === '~') {
+        targetDir = os.homedir();
+      } else if (targetDir.startsWith('~/')) {
+        targetDir = path.join(os.homedir(), targetDir.slice(2));
+      } else if (!path.isAbsolute(targetDir)) {
+        targetDir = path.resolve(sessionData.workingDirectory || process.cwd(), targetDir);
+      }
+
+      try {
+        await this.validateWorkingDirectory(targetDir, false);
+        sessionData.workingDirectory = targetDir;
+        this.sessions.set(sessionKey, sessionData);
+        log.info(`Changed directory to ${targetDir} in session ${sessionKey}`);
+        return {
+          stdout: '',
+          stderr: '',
+          exitCode: 0,
+          workingDirectory: targetDir
+        };
+      } catch (err: any) {
+        return {
+          stdout: '',
+          stderr: `bash: cd: ${cdMatch[1] || ''}: ${err.message}\n`,
+          exitCode: 1,
+          workingDirectory: sessionData.workingDirectory
+        };
+      }
+    }
+
+    if (command.trim() === 'pwd') {
+      const cwd = sessionData.workingDirectory || process.cwd();
+      return {
+        stdout: `${cwd}\n`,
+        stderr: '',
+        exitCode: 0,
+        workingDirectory: cwd
+      };
+    }
+
     // Check if command is trying to set environment variables
     const exportMatch = command.match(/^\s*export\s+([^=;|&]+)=([^;|&]*)(?:\s*$|\s*;|\s*&&|\s*\|\|)/);
     if (exportMatch) {
@@ -971,7 +1032,8 @@ export class CommandExecutor {
         return Promise.resolve({ 
           stdout: `Environment variable ${varName.trim()} set to ${cleanValue}`, 
           stderr: '', 
-          exitCode: 0 
+          exitCode: 0,
+          workingDirectory: sessionData.workingDirectory
         });
       }
     }
@@ -983,7 +1045,8 @@ export class CommandExecutor {
       const childProcess = exec(command, { 
         env: envVars,
         cwd: sessionData.workingDirectory,
-        timeout: timeout
+        timeout: timeout,
+        maxBuffer: this.config.maxOutputSize
       }, (error, stdout, stderr) => {
         let exitCode = 0;
         if (error) {
@@ -995,10 +1058,16 @@ export class CommandExecutor {
           resolve({ 
             stdout, 
             stderr: stderr + `\nCommand timed out after ${timeout}ms`, 
-            exitCode: 124 
+            exitCode: 124,
+            workingDirectory: sessionData.workingDirectory
           });
         } else {
-          resolve({ stdout, stderr, exitCode });
+          resolve({ 
+            stdout, 
+            stderr, 
+            exitCode, 
+            workingDirectory: sessionData.workingDirectory 
+          });
         }
       });
 
@@ -1306,7 +1375,7 @@ export class CommandExecutor {
     }
 
     // Check for path traversal attempts
-    if (source.includes('..') || destination.includes('..')) {
+    if (this.hasPathTraversal(source) || this.hasPathTraversal(destination)) {
       throw new SecurityError('Path traversal (..) is not allowed in file paths');
     }
 
@@ -1511,7 +1580,7 @@ export class CommandExecutor {
     }
 
     // Check for path traversal
-    if (source.includes('..') || destination.includes('..')) {
+    if (this.hasPathTraversal(source) || this.hasPathTraversal(destination)) {
       throw new SecurityError('Path traversal (..) is not allowed in file paths');
     }
 

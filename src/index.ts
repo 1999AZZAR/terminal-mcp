@@ -22,7 +22,7 @@ import {
 } from "./executor.js";
 import { log } from "./logger.js";
 import { textResult } from "./envelope.js";
-import { execFile, execSync } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
 import * as path from "path";
@@ -37,45 +37,43 @@ const rtkBinaries = [
 
 let cachedRtkBinary: string | null | undefined = undefined;
 
+async function getRtkBinary(): Promise<string | null> {
+  if (cachedRtkBinary !== undefined) {
+    return cachedRtkBinary;
+  }
+
+  for (const bin of rtkBinaries) {
+    try {
+      await execFileAsync(bin, ["--version"], { timeout: 1000 });
+      cachedRtkBinary = bin;
+      return bin;
+    } catch {
+      // not available
+    }
+  }
+
+  cachedRtkBinary = null;
+  return null;
+}
+
 async function rewriteWithRtk(command: string): Promise<string> {
   if (process.env.RTK_MCP_REWRITE === "false") {
     return command;
   }
 
-  // Use cached binary if available
-  if (cachedRtkBinary) {
-    try {
-      const { stdout } = await execFileAsync(cachedRtkBinary, ["rewrite", command], {
-        timeout: 1500,
-        maxBuffer: 64 * 1024,
-        env: process.env
-      });
-      return stdout.trim() || command;
-    } catch {
-      // If cached binary fails (e.g. was removed), reset cache and try others
-      cachedRtkBinary = undefined;
-    }
+  const bin = await getRtkBinary();
+  if (!bin) return command;
+
+  try {
+    const { stdout } = await execFileAsync(bin, ["rewrite", command], {
+      timeout: 1500,
+      maxBuffer: 64 * 1024,
+      env: process.env
+    });
+    return stdout.trim() || command;
+  } catch {
+    return command;
   }
-
-  for (const bin of rtkBinaries) {
-    try {
-      const { stdout } = await execFileAsync(bin, ["rewrite", command], {
-        timeout: 1500,
-        maxBuffer: 64 * 1024,
-        env: process.env
-      });
-
-      const rewritten = stdout.trim();
-      if (rewritten) {
-        cachedRtkBinary = bin;
-        return rewritten;
-      }
-    } catch {
-      // Try next candidate binary.
-    }
-  }
-
-  return command;
 }
 
 async function summarizeWithRtk(text: string, type: 'stdout' | 'stderr'): Promise<{ content: string; summarized: boolean }> {
@@ -83,18 +81,8 @@ async function summarizeWithRtk(text: string, type: 'stdout' | 'stderr'): Promis
     return { content: text, summarized: false };
   }
 
-  // Find RTK binary if not cached yet
-  if (!cachedRtkBinary) {
-    for (const bin of rtkBinaries) {
-      try {
-        await execFileAsync(bin, ["--version"], { timeout: 500 });
-        cachedRtkBinary = bin;
-        break;
-      } catch { /* ignore */ }
-    }
-  }
-
-  if (!cachedRtkBinary) {
+  const bin = await getRtkBinary();
+  if (!bin) {
     return { content: text, summarized: false };
   }
 
@@ -107,7 +95,7 @@ async function summarizeWithRtk(text: string, type: 'stdout' | 'stderr'): Promis
     const subcommand = type === 'stderr' || text.includes('Error') || text.includes('warning') ? 'log' : 'smart';
     
     return new Promise((resolve) => {
-      execFile(cachedRtkBinary!, [subcommand, tmpFile], {
+      execFile(bin, [subcommand, tmpFile], {
         timeout: 3000,
         env: process.env
       }, (error, stdout) => {
@@ -132,8 +120,8 @@ async function summarizeWithRtk(text: string, type: 'stdout' | 'stderr'): Promis
 function createServer() {
   const server = new Server(
     {
-      name: "remote-ops-server",
-      version: "0.1.0",
+      name: "terminal-mcp-server",
+      version: "1.2.0",
     },
     {
       capabilities: {
@@ -376,13 +364,13 @@ function createServer() {
       let command = "";
       
       if (toolName === "terminal_ls") {
-        const path = String(request.params.arguments?.path || ".");
+        const targetPath = String(request.params.arguments?.path || ".").trim();
         const all = request.params.arguments?.all !== false;
         const long = request.params.arguments?.long !== false;
-        command = `ls ${all ? '-a' : ''} ${long ? '-l' : ''} '${path.replace(/'/g, "'\\''")}'`;
+        command = `ls ${all ? '-a' : ''} ${long ? '-l' : ''} -- '${targetPath.replace(/'/g, "'\\''")}'`;
       } else if (toolName === "terminal_grep") {
         const pattern = String(request.params.arguments?.pattern || "");
-        const path = String(request.params.arguments?.path || ".");
+        const targetPath = String(request.params.arguments?.path || ".").trim();
         const recursive = request.params.arguments?.recursive !== false;
         const ignoreCase = request.params.arguments?.ignoreCase === true;
         const lineNumber = request.params.arguments?.lineNumber !== false;
@@ -393,16 +381,19 @@ function createServer() {
         if (lineNumber) flags += "n";
         if (flags === "-") flags = "";
         
-        command = `grep ${flags} '${pattern.replace(/'/g, "'\\''")}' '${path.replace(/'/g, "'\\''")}'`;
+        command = `grep ${flags} -- '${pattern.replace(/'/g, "'\\''")}' '${targetPath.replace(/'/g, "'\\''")}'`;
       } else if (toolName === "terminal_cat") {
-        const path = String(request.params.arguments?.path || "");
+        const targetPath = String(request.params.arguments?.path || "").trim();
+        if (!targetPath) {
+          throw new McpError(ErrorCode.InvalidParams, "Path is required for terminal_cat");
+        }
         const tail = request.params.arguments?.tail === true;
         const lines = Number(request.params.arguments?.lines || 100);
         
         if (tail) {
-          command = `tail -n ${lines} '${path.replace(/'/g, "'\\''")}'`;
+          command = `tail -n ${lines} -- '${targetPath.replace(/'/g, "'\\''")}'`;
         } else {
-          command = `cat '${path.replace(/'/g, "'\\''")}'`;
+          command = `cat -- '${targetPath.replace(/'/g, "'\\''")}'`;
         }
       } else if (toolName === "execute_command") {
         command = String(request.params.arguments?.command || "");
@@ -492,7 +483,7 @@ function createServer() {
           stdout: processedStdout,
           stderr: processedStderr,
           rtkSummarized: stdoutSummarized || stderrSummarized,
-          workingDirectory: workingDirectory || (host ? undefined : process.cwd())
+          workingDirectory: result.workingDirectory || workingDirectory || (host ? undefined : process.cwd())
         };
         
         return textResult(toolName, response);
@@ -819,7 +810,7 @@ async function main() {
     
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    log.info("Remote Ops MCP server running on stdio");
+    log.info("Terminal MCP Server (HeLa Nucleus) running on stdio");
 
     // Handle process signals for graceful shutdown
     const gracefulShutdown = async (signal: string) => {

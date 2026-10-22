@@ -52,7 +52,7 @@ export interface HelaResult<T = unknown> {
   error?: string;
 }
 
-export const SERVER_NAME = "remote-ops-server";
+export const SERVER_NAME = "terminal-mcp-server";
 
 /** Consequential tools declare their side effects; read-only tools declare none. */
 export const TOOL_SIDE_EFFECTS: Record<string, string[]> = {
