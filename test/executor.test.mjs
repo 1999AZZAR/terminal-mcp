@@ -57,6 +57,13 @@ test('CommandExecutor: standalone cd and pwd session persistence', async () => {
   await executor.disconnect();
 });
 
+test('CommandExecutor: validation errors on empty or invalid inputs', () => {
+  const executor = new CommandExecutor();
+  assert.throws(() => executor.validateCommand(''), ValidationError);
+  assert.throws(() => executor.validateSessionName(''), ValidationError);
+  assert.throws(() => executor.validateSessionName('invalid name with spaces!'), ValidationError);
+});
+
 test('CommandExecutor: dangerous command blocking', () => {
   const executor = new CommandExecutor();
 
