@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.4.0] - 2026-10-22
 
 ### Added
+- **Session Lifecycle Tools**: Added native MCP tools `session_close` and `session_list` to allow agents to actively monitor session capacity, inspect working directories/environment variables, and immediately release session slots to avoid hitting `MAX_CONCURRENT_SESSIONS`.
 - **Working Directory Session Persistence**: Intercepted standalone `cd` and `pwd` commands to track and update session `workingDirectory`, ensuring directory state persists across subsequent commands in the session.
 - **Dynamic Output Buffer Support**: Aligned `child_process.exec` `maxBuffer` to `config.maxOutputSize` (default 5MB), preventing unhandled `ERR_CHILD_PROCESS_STDIO_MAXBUFFER` exceptions on large stdout/stderr payloads.
 - **SSH Multi-Key Discovery**: Added automatic key discovery fallback across `id_ed25519`, `id_rsa`, and `id_ecdsa` when `SSH_KEY_PATH` is not explicitly set.

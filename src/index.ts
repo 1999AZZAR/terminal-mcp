@@ -273,6 +273,32 @@ function createServer() {
             },
             required: ["path"]
           }
+        },
+        {
+          name: "session_close",
+          description: "Close and disconnect an active terminal session, releasing its session slot. Accepts a session name (e.g. 'default', 'build'), session key (e.g. 'local-default'), or 'all' to close all active sessions.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              session: {
+                type: "string",
+                description: "Name or key of the session to close, or 'all' to disconnect all sessions",
+              },
+              host: {
+                type: "string",
+                description: "Remote host for remote sessions (optional, omit for local)",
+              },
+            },
+            required: ["session"],
+          },
+        },
+        {
+          name: "session_list",
+          description: "List all active local and remote terminal sessions, showing session keys, working directories, active environment variables, last activity timestamps, and capacity.",
+          inputSchema: {
+            type: "object",
+            properties: {},
+          },
         }
       ]
     };
@@ -286,6 +312,39 @@ function createServer() {
       // set HELA_NUCLEUS_ALLOW_REMOTE=true to opt in to remote targets.
       if (request.params.arguments?.host && process.env['HELA_NUCLEUS_ALLOW_REMOTE'] !== 'true') {
         throw new McpError(ErrorCode.InvalidParams, "remote hosts are disabled (set HELA_NUCLEUS_ALLOW_REMOTE=true to enable)");
+      }
+
+      // Handle session lifecycle tools
+      if (toolName === "session_close") {
+        const session = request.params.arguments?.session ? String(request.params.arguments.session) : undefined;
+        if (!session) {
+          throw new McpError(ErrorCode.InvalidParams, "Session name is required");
+        }
+        const host = request.params.arguments?.host ? String(request.params.arguments.host) : undefined;
+        try {
+          const result = await commandExecutor.closeSession({ session, host });
+          return textResult(toolName, result);
+        } catch (error) {
+          if (error instanceof ValidationError) {
+            throw new McpError(ErrorCode.InvalidParams, `Validation Error: ${error.message}`);
+          }
+          if (error instanceof Error) {
+            throw new McpError(ErrorCode.InternalError, error.message);
+          }
+          throw error;
+        }
+      }
+
+      if (toolName === "session_list") {
+        try {
+          const result = await commandExecutor.listSessions();
+          return textResult(toolName, result);
+        } catch (error) {
+          if (error instanceof Error) {
+            throw new McpError(ErrorCode.InternalError, error.message);
+          }
+          throw error;
+        }
       }
 
       // Handle transfer_file tool

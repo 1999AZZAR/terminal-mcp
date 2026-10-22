@@ -1125,10 +1125,70 @@ export class CommandExecutor {
     log.info(`All sessions disconnected`);
   }
 
+  /**
+   * Close a specific session by name/key or all sessions
+   */
+  async closeSession(options: { session: string; host?: string }): Promise<{ success: boolean; session: string; message: string }> {
+    const { session, host } = options;
+    if (!session || typeof session !== "string") {
+      throw new ValidationError("Session name must be a non-empty string");
+    }
+
+    if (session === "all") {
+      const count = this.sessions.size;
+      await this.disconnect();
+      return {
+        success: true,
+        session: "all",
+        message: `All sessions successfully disconnected and closed (${count} sessions closed)`,
+      };
+    }
+
+    // Direct sessionKey match (e.g. "local-default" or "remote-host-user-default")
+    if (this.sessions.has(session)) {
+      await this.disconnectSession(session);
+      return {
+        success: true,
+        session,
+        message: `Session "${session}" successfully closed`,
+      };
+    }
+
+    // Resolving via host & sessionName
+    const sessionKey = this.getSessionKey(host, session);
+    if (this.sessions.has(sessionKey)) {
+      await this.disconnectSession(sessionKey);
+      return {
+        success: true,
+        session: sessionKey,
+        message: `Session "${sessionKey}" successfully closed`,
+      };
+    }
+
+    return {
+      success: false,
+      session,
+      message: `Session "${session}" not found or already closed`,
+    };
+  }
+
+  /**
+   * List active sessions and capacity
+   */
+  async listSessions(): Promise<any> {
+    const status = await this.getSessionStatus();
+    return {
+      ...status,
+      maxConcurrentSessions: this.config.maxConcurrentSessions,
+      availableSlots: Math.max(0, this.config.maxConcurrentSessions - status.summary.totalSessions),
+    };
+  }
+
   async getSessionStatus(): Promise<any> {
     const sessions = await Promise.all(Array.from(this.sessions.entries()).map(async ([sessionKey, session]) => {
-      const isActive = session.client && session.connection;
-      const isHealthy = isActive ? await this.isConnectionHealthy(session.client!) : false;
+      const isLocal = !session.host || session.host === "local";
+      const isActive = isLocal ? true : Boolean(session.client && session.connection);
+      const isHealthy = isLocal ? true : (isActive ? await this.isConnectionHealthy(session.client!) : false);
       const lastActivity = session.lastActivity ? new Date(session.lastActivity).toISOString() : null;
 
       return {

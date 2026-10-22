@@ -29,6 +29,8 @@ Terminal MCP Server is a robust Model Context Protocol (MCP) server designed for
   - [terminal_ls](#terminal_ls)
   - [terminal_grep](#terminal_grep)
   - [terminal_cat](#terminal_cat)
+  - [session_close](#session_close)
+  - [session_list](#session_list)
 - [Configuring with AI Assistants](#configuring-with-ai-assistants)
   - [Configuring with Roo Code](#configuring-with-roo-code)
   - [Configuring with Cline](#configuring-with-cline)
@@ -605,6 +607,63 @@ Safely reads file contents on remote or local hosts.
 | session | string | No | Session name for connection reuse (default: 'default') |
 | tail | boolean | No | If true, reads the end of the file like `tail` (default: false) |
 | lines | number | No | Number of lines to read if using tail (default: 100) |
+
+### session_close
+
+Closes and disconnects an active local or remote terminal session, immediately freeing up a session slot against the `MAX_CONCURRENT_SESSIONS` limit.
+
+#### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| session | string | Yes | Name or key of the session to close (e.g. `'default'`, `'build'`), or `'all'` to terminate all sessions |
+| host | string | No | Remote host for remote sessions (omit for local) |
+
+#### Example
+
+```json
+{
+  "session": "build-session"
+}
+```
+
+### session_list
+
+Lists all active local and remote sessions, reporting session keys, active working directories, environment variable names, last activity timestamps, and current session capacity.
+
+#### Parameters
+
+*None (empty object `{}`)*
+
+#### Example Response
+
+```json
+{
+  "summary": {
+    "totalSessions": 1,
+    "activeSessions": 1,
+    "localSessions": 1,
+    "remoteSessions": 0
+  },
+  "sessions": {
+    "local": [
+      {
+        "sessionKey": "local-default",
+        "host": "local",
+        "isActive": true,
+        "isHealthy": true,
+        "workingDirectory": "/home/user/project",
+        "environmentVariables": ["NODE_ENV"],
+        "lastActivity": "2026-10-22T23:00:00.000Z"
+      }
+    ],
+    "remote": []
+  },
+  "maxConcurrentSessions": 10,
+  "availableSlots": 9,
+  "timestamp": "2026-10-22T23:00:00.000Z"
+}
+```
 
 ## Configuring with AI Assistants
 

@@ -61,6 +61,8 @@ export const TOOL_SIDE_EFFECTS: Record<string, string[]> = {
   terminal_ls: [],
   terminal_grep: [],
   terminal_cat: [],
+  session_close: ["session-termination"],
+  session_list: [],
 };
 
 export function isEnvelopeEnabled(): boolean {

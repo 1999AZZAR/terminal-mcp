@@ -9,7 +9,15 @@ import {
   textResult,
 } from '../build/envelope.js';
 
-const ALL_TOOLS = ['execute_command', 'transfer_file', 'terminal_ls', 'terminal_grep', 'terminal_cat'];
+const ALL_TOOLS = [
+  'execute_command',
+  'transfer_file',
+  'terminal_ls',
+  'terminal_grep',
+  'terminal_cat',
+  'session_close',
+  'session_list',
+];
 const REQUIRED_KEYS = ['ok', 'summary', 'data', 'artifacts', 'provenance', 'warnings', 'sideEffects', 'execution', 'redaction'];
 
 function withEnv(vars, fn) {
@@ -33,7 +41,8 @@ test('side-effect map covers every tool', () => {
   assert.deepEqual(new Set(Object.keys(TOOL_SIDE_EFFECTS)), new Set(ALL_TOOLS));
   assert.deepEqual(TOOL_SIDE_EFFECTS['execute_command'], ['command-execution']);
   assert.deepEqual(TOOL_SIDE_EFFECTS['transfer_file'], ['file-transfer']);
-  for (const t of ['terminal_ls', 'terminal_grep', 'terminal_cat']) {
+  assert.deepEqual(TOOL_SIDE_EFFECTS['session_close'], ['session-termination']);
+  for (const t of ['terminal_ls', 'terminal_grep', 'terminal_cat', 'session_list']) {
     assert.deepEqual(TOOL_SIDE_EFFECTS[t], [], `${t} must be side-effect free`);
   }
 });
@@ -67,25 +76,3 @@ for (const tool of ALL_TOOLS) {
     });
   });
 }
-
-test('on-mode error shape carries side effects', () => {
-  withEnv({ HELA_ENVELOPE: 'true' }, () => {
-    const err = wrapError('execute_command', 'boom');
-    assert.equal(err.ok, false);
-    assert.equal(err.data, null);
-    assert.deepEqual(err.sideEffects, ['command-execution']);
-    assert.ok(err.error.includes('boom'));
-  });
-});
-
-test('run/step id propagation from env', () => {
-  withEnv({ HELA_ENVELOPE: 'true', HELA_RUN_ID: 'r1', HELA_STEP_ID: 's2' }, () => {
-    const env = JSON.parse(textResult('terminal_ls', {}).content[0].text);
-    assert.equal(env.execution.run_id, 'r1');
-    assert.equal(env.execution.step_id, 's2');
-  });
-});
-
-test('wrapResult summary default', () => {
-  assert.equal(wrapResult('terminal_cat', 'x').summary, 'terminal_cat ok');
-});

@@ -109,3 +109,47 @@ test('CommandExecutor: path traversal detection vs safe double-dot filenames', a
     await executor.disconnect();
   }
 });
+
+test('CommandExecutor: listSessions and closeSession lifecycle management', async () => {
+  const executor = new CommandExecutor();
+  const sessionName = `session-life-${Date.now()}`;
+
+  // Initially 0 sessions
+  let list = await executor.listSessions();
+  assert.equal(list.summary.totalSessions, 0);
+  assert.equal(list.availableSlots, list.maxConcurrentSessions);
+
+  // Create session by executing command
+  await executor.executeCommand('echo "session init"', { session: sessionName });
+
+  list = await executor.listSessions();
+  assert.equal(list.summary.totalSessions, 1);
+  assert.equal(list.summary.localSessions, 1);
+  assert.equal(list.availableSlots, list.maxConcurrentSessions - 1);
+  assert.ok(list.sessions.local.some((s) => s.sessionKey === `local-${sessionName}`));
+
+  // Close session by name
+  const closeRes = await executor.closeSession({ session: sessionName });
+  assert.equal(closeRes.success, true);
+
+  list = await executor.listSessions();
+  assert.equal(list.summary.totalSessions, 0);
+  assert.equal(list.availableSlots, list.maxConcurrentSessions);
+
+  // Closing non-existent session returns success: false without throwing
+  const falseClose = await executor.closeSession({ session: 'non-existent' });
+  assert.equal(falseClose.success, false);
+
+  // Close all sessions
+  await executor.executeCommand('echo "s1"', { session: 's1' });
+  await executor.executeCommand('echo "s2"', { session: 's2' });
+  list = await executor.listSessions();
+  assert.equal(list.summary.totalSessions, 2);
+
+  const closeAllRes = await executor.closeSession({ session: 'all' });
+  assert.equal(closeAllRes.success, true);
+  list = await executor.listSessions();
+  assert.equal(list.summary.totalSessions, 0);
+
+  await executor.disconnect();
+});
